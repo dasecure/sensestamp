@@ -1,10 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* No CSS variables needed - using direct Tailwind classes */
-
-/* Base styles handled by Tailwind */
+@import "tailwindcss";
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
@@ -24,21 +18,11 @@
   background: rgba(16, 185, 129, 0.5);
 }
 
-/* Smooth scrolling for all browsers */
 html {
   scroll-behavior: smooth;
 }
 
-/* Custom gradient backgrounds */
-.gradient-radial {
-  background: radial-gradient(ellipse at center, var(--tw-gradient-stops));
-}
-
-.gradient-conic {
-  background: conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops));
-}
-
-/* Hero background animation */
+/* Hero background */
 .hero-bg {
   background: 
     radial-gradient(circle at 20% 80%, rgba(16, 185, 129, 0.15) 0%, transparent 50%),
@@ -48,39 +32,20 @@ html {
 
 /* Sensor pulse animation */
 @keyframes sensor-pulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.05);
-    opacity: 0.8;
-  }
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
 }
-
-.sensor-pulse {
-  animation: sensor-pulse 2s ease-in-out infinite;
-}
+.sensor-pulse { animation: sensor-pulse 2s ease-in-out infinite; }
 
 /* Floating animation */
 @keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
 }
+.float { animation: float 6s ease-in-out infinite; }
 
-.float {
-  animation: float 6s ease-in-out infinite;
-}
-
-/* Glow effect */
-.glow {
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
-}
-
+/* Glow effects */
+.glow { box-shadow: 0 0 20px rgba(16, 185, 129, 0.3); }
 .glow-strong {
   box-shadow: 
     0 0 20px rgba(16, 185, 129, 0.5),
@@ -94,11 +59,6 @@ html {
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-}
-
-/* Border gradient */
-.border-gradient {
-  border-image: linear-gradient(135deg, #10b981, #059669, #047857) 1;
 }
 
 /* Grid pattern background */
