@@ -6,7 +6,7 @@ export default function Roadmap() {
   const roadmapItems = [
     {
       phase: "Phase 1",
-      timeline: "Q2 2024",
+      timeline: "Q2 2026",
       title: "Motion Sensors",
       status: "current",
       description: "Precision accelerometer-based motion detection for doors, windows, and drawers",
@@ -21,7 +21,7 @@ export default function Roadmap() {
     },
     {
       phase: "Phase 2", 
-      timeline: "Q4 2024",
+      timeline: "Q4 2026",
       title: "Environmental Sensors",
       status: "planned",
       description: "Temperature, humidity, and air quality monitoring for comprehensive awareness",
@@ -36,7 +36,7 @@ export default function Roadmap() {
     },
     {
       phase: "Phase 3",
-      timeline: "Q2 2025", 
+      timeline: "Q2 2027", 
       title: "Audio Sensors",
       status: "planned",
       description: "Smart sound detection for glass breaking, smoke alarms, and security events",
@@ -51,7 +51,7 @@ export default function Roadmap() {
     },
     {
       phase: "Phase 4",
-      timeline: "2025+",
+      timeline: "2027+",
       title: "Ecosystem Expansion", 
       status: "future",
       description: "Complete IoT security ecosystem with advanced AI and automation features",
