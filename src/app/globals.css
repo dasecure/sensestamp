@@ -4,14 +4,7 @@
 
 /* No CSS variables needed - using direct Tailwind classes */
 
-@layer base {
-  * {
-    @apply border-gray-700;
-  }
-  body {
-    @apply bg-black text-white;
-  }
-}
+/* Base styles handled by Tailwind */
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
