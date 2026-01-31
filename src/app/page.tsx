@@ -54,6 +54,14 @@ export default function Home() {
                   <span>Privacy Policy</span>
                   <span>•</span>
                   <span>Terms of Service</span>
+                  <span>•</span>
+                  <a href="https://iotpush.com" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition">
+                    Alerts by iotpush
+                  </a>
+                  <span>•</span>
+                  <a href="https://waitlistwin.com" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition">
+                    Waitlist by WaitlistWin
+                  </a>
                 </div>
               </motion.div>
             </div>
