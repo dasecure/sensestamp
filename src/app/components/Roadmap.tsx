@@ -307,7 +307,7 @@ export default function Roadmap() {
               className="text-3xl lg:text-4xl font-bold mb-6"
             >
               One Ecosystem, <span className="text-gradient">Infinite Awareness</span>
-            </h3>
+            </motion.h3>
             
             <motion.p
               initial={{ opacity: 0, y: 20 }}
