@@ -32,20 +32,11 @@ export const metadata: Metadata = {
     siteName: "SenseStamp",
     locale: "en_US",
     type: "website",
-    images: [
-      {
-        url: "https://sensestamp.com/og-image.jpg",
-        width: 1200,
-        height: 630,
-        alt: "SenseStamp IoT Security Sensors",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "SenseStamp - IoT Security Sensors Without Subscriptions",
     description: "Affordable, subscription-free smart motion sensors. No hub, no monthly fees, no complexity.",
-    images: ["https://sensestamp.com/og-image.jpg"],
   },
   robots: {
     index: true,
