@@ -6,8 +6,8 @@ export default function HowItWorks() {
   const steps = [
     {
       step: "01",
-      title: "Stick & Connect",
-      description: "Peel, stick anywhere it matters. Connect to your Wi-Fi with one tap.",
+      title: "Deploy & Register",
+      description: "Register your ESP32-C6 device with a shared HMAC secret. Plug in, connect to Wi-Fi, done.",
       icon: (
         <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -16,8 +16,8 @@ export default function HowItWorks() {
     },
     {
       step: "02", 
-      title: "Configure Alerts",
-      description: "Set your notification preferences. SMS, email, webhook, or integrate with your smart home.",
+      title: "Events Get Signed",
+      description: "Sensor events are HMAC-SHA256 signed on-device before leaving the hardware. Tamper-proof by design.",
       icon: (
         <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -27,8 +27,8 @@ export default function HowItWorks() {
     },
     {
       step: "03",
-      title: "Get Protected",
-      description: "Motion detected? You'll know instantly. Battery running low? We'll tell you weeks ahead.",
+      title: "Verify Anywhere",
+      description: "Every event gets a public proof URL. Tap the NFC tag or check the dashboard — cryptographic proof it happened.",
       icon: (
         <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -48,11 +48,11 @@ export default function HowItWorks() {
           className="text-center mb-16"
         >
           <h2 className="text-4xl lg:text-5xl font-bold mb-6">
-            Setup in <span className="text-gradient">Seconds</span>
+            How It <span className="text-gradient">Works</span>
           </h2>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-            No technical expertise required. No complicated installation. 
-            SenseStamp works right out of the box.
+            Hardware-signed events create an immutable chain of proof.
+            No cloud trust required — verify directly from the cryptographic signature.
           </p>
         </motion.div>
 
@@ -211,7 +211,7 @@ export default function HowItWorks() {
             {/* Right side - Benefits */}
             <div>
               <h3 className="text-3xl font-bold text-white mb-6">
-                It Really Is <span className="text-gradient">That Simple</span>
+                Built for <span className="text-gradient">Trust</span>
               </h3>
               
               <div className="space-y-6">
@@ -226,8 +226,8 @@ export default function HowItWorks() {
                     <span className="text-white text-xs">✓</span>
                   </div>
                   <div>
-                    <h4 className="text-lg font-semibold text-white mb-2">No Hub Required</h4>
-                    <p className="text-gray-400">Direct Wi-Fi connection means one less device to manage and no single point of failure.</p>
+                    <h4 className="text-lg font-semibold text-white mb-2">Hardware-Signed Events</h4>
+                    <p className="text-gray-400">HMAC-SHA256 signatures generated on the ESP32 chip. Events are authenticated before they leave the device.</p>
                   </div>
                 </motion.div>
 
@@ -242,8 +242,8 @@ export default function HowItWorks() {
                     <span className="text-white text-xs">✓</span>
                   </div>
                   <div>
-                    <h4 className="text-lg font-semibold text-white mb-2">Universal Notifications</h4>
-                    <p className="text-gray-400">Use any notification service you prefer - SMS, email, Slack, Discord, or your smart home system.</p>
+                    <h4 className="text-lg font-semibold text-white mb-2">NFC Proof of Presence</h4>
+                    <p className="text-gray-400">Physical NFC tap creates cryptographic proof someone was at a specific location at a specific time.</p>
                   </div>
                 </motion.div>
 
@@ -258,8 +258,8 @@ export default function HowItWorks() {
                     <span className="text-white text-xs">✓</span>
                   </div>
                   <div>
-                    <h4 className="text-lg font-semibold text-white mb-2">Smart Battery Management</h4>
-                    <p className="text-gray-400">Adaptive power modes and early low-battery warnings ensure you're never caught off guard.</p>
+                    <h4 className="text-lg font-semibold text-white mb-2">Public Verification</h4>
+                    <p className="text-gray-400">Every event has a shareable proof URL. Third parties can verify without needing an account or API access.</p>
                   </div>
                 </motion.div>
               </div>

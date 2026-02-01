@@ -50,7 +50,7 @@ export default function Hero() {
               className="inline-flex items-center px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-full text-sm text-emerald-400 mb-6"
             >
               <span className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse"></span>
-              IoT Security Revolution
+              Tamper-Proof IoT Event Logging
             </motion.div>
 
             <motion.h1
@@ -59,9 +59,9 @@ export default function Hero() {
               transition={{ duration: 0.8, delay: 0.6 }}
               className="text-5xl lg:text-7xl font-bold leading-tight mb-6"
             >
-              Security That
+              Prove It
               <br />
-              <span className="text-gradient">Just Works</span>
+              <span className="text-gradient">Happened</span>
             </motion.h1>
 
             <motion.p
@@ -70,8 +70,8 @@ export default function Hero() {
               transition={{ duration: 0.8, delay: 0.8 }}
               className="text-xl lg:text-2xl text-gray-300 mb-8 max-w-xl"
             >
-              Tiny wireless sensors that stick anywhere. Instant push notifications when something moves. 
-              <span className="text-emerald-400 font-semibold"> No hub, no fees, no complexity.</span>
+              Cryptographically signed sensor events with hardware-backed proof of presence. NFC tap verification, HMAC-SHA256 attestation, and
+              <span className="text-emerald-400 font-semibold"> immutable audit trails.</span>
             </motion.p>
 
             <motion.div
@@ -106,15 +106,15 @@ export default function Hero() {
             >
               <div className="flex items-center">
                 <span className="text-emerald-400 mr-2">✓</span>
-                Months of battery life
+                HMAC-SHA256 signed
               </div>
               <div className="flex items-center">
                 <span className="text-emerald-400 mr-2">✓</span>
-                Zero subscription fees
+                NFC tap verification
               </div>
               <div className="flex items-center">
                 <span className="text-emerald-400 mr-2">✓</span>
-                Open protocols
+                Public proof URLs
               </div>
             </motion.div>
           </motion.div>
@@ -202,7 +202,7 @@ export default function Hero() {
             >
               <div className="flex items-center text-sm">
                 <span className="w-2 h-2 bg-emerald-400 rounded-full mr-2"></span>
-                Wi-Fi 6 Ready
+                ESP32-C6 + NFC
               </div>
             </motion.div>
 
@@ -226,7 +226,7 @@ export default function Hero() {
             >
               <div className="flex items-center text-sm">
                 <span className="w-2 h-2 bg-emerald-400 rounded-full mr-2"></span>
-                Instant Alerts
+                Signed Events
               </div>
             </motion.div>
           </motion.div>
