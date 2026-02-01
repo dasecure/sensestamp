@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SenseStamp POC — Hardware Specification</title>
+<style>
+  @page { size: A4; margin: 20mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #1a1a2e; line-height: 1.6; background: #fff; padding: 40px; max-width: 210mm; margin: 0 auto; }
+
+  /* Cover */
+  .cover { text-align: center; padding: 60px 0 40px; border-bottom: 3px solid #10b981; margin-bottom: 40px; }
+  .cover h1 { font-size: 36px; color: #0f172a; margin-bottom: 8px; }
+  .cover .subtitle { font-size: 18px; color: #10b981; font-weight: 600; margin-bottom: 4px; }
+  .cover .meta { font-size: 13px; color: #64748b; margin-top: 12px; }
+  .logo { font-size: 48px; margin-bottom: 16px; }
+
+  /* Sections */
+  h2 { font-size: 22px; color: #0f172a; border-left: 4px solid #10b981; padding-left: 12px; margin: 36px 0 16px; }
+  h3 { font-size: 16px; color: #334155; margin: 20px 0 10px; }
+  p, li { font-size: 14px; color: #374151; }
+  ul { padding-left: 20px; margin: 8px 0; }
+  li { margin-bottom: 6px; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 13px; }
+  th { background: #0f172a; color: #fff; padding: 10px 12px; text-align: left; font-weight: 600; }
+  td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+  tr:nth-child(even) td { background: #f8fafc; }
+
+  /* Diagram */
+  .diagram-box { background: #0f172a; color: #e2e8f0; padding: 24px; border-radius: 12px; margin: 16px 0 24px; overflow-x: auto; }
+  .diagram-box pre { font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.5; white-space: pre; color: #a7f3d0; }
+  .diagram-label { font-size: 11px; color: #94a3b8; text-align: center; margin-top: 6px; }
+
+  /* Callout */
+  .callout { background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 14px 18px; margin: 16px 0; }
+  .callout-warn { background: #fffbeb; border-color: #fcd34d; }
+  .callout strong { color: #065f46; }
+  .callout-warn strong { color: #92400e; }
+
+  /* BOM */
+  .bom-table td:last-child { text-align: right; }
+  .bom-total { font-weight: 700; background: #f0fdf4 !important; }
+
+  /* Page breaks */
+  .page-break { page-break-before: always; }
+
+  /* Footer */
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center; }
+
+  /* Use case cards */
+  .use-cases { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+  .use-case { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }
+  .use-case h4 { font-size: 14px; color: #0f172a; margin-bottom: 4px; }
+  .use-case p { font-size: 12px; color: #64748b; }
+  .use-case .emoji { font-size: 24px; margin-bottom: 6px; }
+
+  .badge { display: inline-block; background: #10b981; color: #fff; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="logo">🔏</div>
+  <h1>SenseStamp</h1>
+  <div class="subtitle">Proof-of-Concept Hardware Specification</div>
+  <p style="font-size:15px; color:#64748b; margin-top:4px;">ESP32-C6 + PN532 NFC + Battery</p>
+  <div class="meta">
+    DaSecure Solutions LLC · San Francisco, CA<br>
+    Document Version 1.0 · January 31, 2026<br>
+    CONFIDENTIAL
+  </div>
+</div>
+
+<!-- OVERVIEW -->
+<h2>1. Project Overview</h2>
+<p>SenseStamp is an IoT security platform delivering tiny wireless sensors with instant push notifications — no hub, no fees, no complexity. This document specifies the Proof-of-Concept (POC) hardware build combining an <strong>ESP32-C6</strong> microcontroller with a <strong>PN532 NFC/RFID</strong> module and <strong>LiPo battery</strong> power.</p>
+
+<div class="callout">
+  <strong>Primary POC Goal:</strong> Proof of Presence — cryptographically prove a specific NFC tag was scanned at a specific location at a specific time, with instant cloud notification.
+</div>
+
+<h3>Target Applications</h3>
+<div class="use-cases">
+  <div class="use-case">
+    <div class="emoji">📍</div>
+    <h4>Proof of Presence</h4>
+    <p>Scan NFC tag at a location to cryptographically verify someone was there at a specific time. Security patrols, delivery confirmation, maintenance rounds.</p>
+  </div>
+  <div class="use-case">
+    <div class="emoji">🔐</div>
+    <h4>Smart Seal / Tamper Tag</h4>
+    <p>NFC tag on doors, safes, packages. Periodic presence check — tag removed triggers instant push notification. Digital tamper-evident seals.</p>
+  </div>
+  <div class="use-case">
+    <div class="emoji">🚪</div>
+    <h4>Tap-to-Arm/Disarm</h4>
+    <p>NFC card tap toggles security zone. No app needed for physical interaction — hotel key card experience for your security.</p>
+  </div>
+  <div class="use-case">
+    <div class="emoji">🏷️</div>
+    <h4>Product Authentication</h4>
+    <p>Write signed hash to NFC tags on high-value items. Any NFC phone can verify authenticity. ESP32-C6 as enrollment station.</p>
+  </div>
+  <div class="use-case">
+    <div class="emoji">👤</div>
+    <h4>Check-in System</h4>
+    <p>Each person gets an NFC card. Tap on arrival/departure. Logs who, where, when — sends notifications automatically.</p>
+  </div>
+  <div class="use-case">
+    <div class="emoji">🔧</div>
+    <h4>Tool Checkout</h4>
+    <p>Tagged tools + sensor at tool crib. Tap in/out tracks inventory, alerts if items don't return on schedule.</p>
+  </div>
+</div>
+
+<!-- ARCHITECTURE -->
+<h2>2. System Architecture</h2>
+
+<div class="diagram-box">
+<pre>
+  ┌─────────────┐     SPI Bus      ┌─────────────────┐     Wi-Fi      ┌──────────────┐
+  │             │  SCK/MISO/MOSI   │                 │    802.11n    │              │
+  │   PN532     │◄────────────────►│    ESP32-C6     │◄────────────►│  Cloud API   │
+  │  NFC/RFID   │     + SS/IRQ     │  Microcontroller│               │  (iotpush)   │
+  │             │                  │                 │               │              │
+  └─────────────┘                  └────────┬────────┘               └──────┬───────┘
+                                            │                               │
+                                      ┌─────┴─────┐                  ┌─────┴───────┐
+                                      │  TP4056   │                  │  Push       │
+                                      │  Charger  │                  │  Notification│
+                                      │  + LiPo   │                  │  to Phone   │
+                                      │  Battery  │                  └─────────────┘
+                                      └───────────┘
+
+  ┌──────────────────────────────────────────────────────────────────────────────────┐
+  │  FLOW:  NFC Tag Tap → PN532 IRQ → ESP32 Wake → Read Tag UID → Sign Timestamp  │
+  │         → Connect Wi-Fi → POST to Cloud API → Push Notification → Deep Sleep   │
+  └──────────────────────────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+
+<!-- HARDWARE -->
+<div class="page-break"></div>
+<h2>3. Hardware Components</h2>
+
+<h3>3.1 Bill of Materials</h3>
+<table class="bom-table">
+  <tr><th>Component</th><th>Model / Spec</th><th>Qty</th><th>Est. Cost</th></tr>
+  <tr><td>Microcontroller</td><td>ESP32-C6 Dev Board (e.g. Seeed XIAO ESP32-C6)</td><td>1</td><td>$6–8</td></tr>
+  <tr><td>NFC Module</td><td>PN532 NFC/RFID Module (SPI/I2C/UART)</td><td>1</td><td>$4–6</td></tr>
+  <tr><td>Battery</td><td>3.7V LiPo, 1000mAh (JST PH 2.0 connector)</td><td>1</td><td>$3–5</td></tr>
+  <tr><td>Charger Module</td><td>TP4056 USB-C LiPo Charger w/ protection</td><td>1</td><td>$0.50–1</td></tr>
+  <tr><td>Capacitor</td><td>100μF electrolytic (for Wi-Fi TX stability)</td><td>1</td><td>$0.10</td></tr>
+  <tr><td>Breadboard</td><td>Half-size 400 tie-point</td><td>1</td><td>$2</td></tr>
+  <tr><td>Jumper Wires</td><td>Male-to-female dupont wires</td><td>~10</td><td>$1</td></tr>
+  <tr><td>NFC Tags</td><td>NTAG215 stickers (for testing)</td><td>5–10</td><td>$3–5</td></tr>
+  <tr class="bom-total"><td colspan="3"><strong>Estimated Total</strong></td><td><strong>$20–28</strong></td></tr>
+</table>
+
+<h3>3.2 ESP32-C6 Key Specifications</h3>
+<table>
+  <tr><th>Parameter</th><th>Value</th></tr>
+  <tr><td>CPU</td><td>RISC-V 32-bit, single-core, 160 MHz</td></tr>
+  <tr><td>Wi-Fi</td><td>802.11b/g/n (2.4 GHz), Wi-Fi 6 ready</td></tr>
+  <tr><td>Bluetooth</td><td>BLE 5.0 + Zigbee / Thread (802.15.4)</td></tr>
+  <tr><td>Flash</td><td>4 MB (typical dev board)</td></tr>
+  <tr><td>SRAM</td><td>512 KB</td></tr>
+  <tr><td>GPIO</td><td>22 programmable GPIOs</td></tr>
+  <tr><td>Deep Sleep Current</td><td>~5 μA</td></tr>
+  <tr><td>Active Current (Wi-Fi TX)</td><td>~300 mA peak</td></tr>
+  <tr><td>Operating Voltage</td><td>3.0–3.6V</td></tr>
+  <tr><td>USB</td><td>USB-C (on most dev boards)</td></tr>
+</table>
+
+<h3>3.3 PN532 NFC Module Specifications</h3>
+<table>
+  <tr><th>Parameter</th><th>Value</th></tr>
+  <tr><td>NFC Standards</td><td>ISO 14443A/B, ISO 18092, FeliCa</td></tr>
+  <tr><td>Supported Tags</td><td>MIFARE Classic/Ultralight, NTAG2xx, ISO 14443-4</td></tr>
+  <tr><td>Interfaces</td><td>SPI, I2C, UART (DIP switch selectable)</td></tr>
+  <tr><td>Operating Voltage</td><td>3.3V – 5V</td></tr>
+  <tr><td>Active Current</td><td>~100 mA (during read)</td></tr>
+  <tr><td>Standby Current</td><td>~80 μA</td></tr>
+  <tr><td>Read Range</td><td>~5 cm (tag dependent)</td></tr>
+  <tr><td>Operating Frequency</td><td>13.56 MHz</td></tr>
+</table>
+
+<!-- WIRING -->
+<div class="page-break"></div>
+<h2>4. Wiring Diagram</h2>
+
+<h3>4.1 PN532 → ESP32-C6 (SPI Mode)</h3>
+<div class="diagram-box">
+<pre>
+       PN532 NFC Module                          ESP32-C6 Dev Board
+      ┌─────────────────┐                      ┌─────────────────────┐
+      │                 │                      │                     │
+      │  SCK  ──────────┼──────────────────────┤► GPIO 6   (SPI CLK) │
+      │                 │                      │                     │
+      │  MISO ──────────┼──────────────────────┤► GPIO 2   (SPI RX)  │
+      │                 │                      │                     │
+      │  MOSI ──────────┼──────────────────────┤► GPIO 7   (SPI TX)  │
+      │                 │                      │                     │
+      │  SS   ──────────┼──────────────────────┤► GPIO 10  (SPI CS)  │
+      │                 │                      │                     │
+      │  IRQ  ──────────┼──────── (optional) ──┤► GPIO 3   (WAKE)    │
+      │                 │                      │                     │
+      │  VCC  ──────────┼──────────────────────┤► 3V3                │
+      │                 │                      │                     │
+      │  GND  ──────────┼──────────────────────┤► GND                │
+      │                 │                      │                     │
+      └─────────────────┘                      └─────────────────────┘
+
+      DIP Switches (on PN532):
+      ┌─────────────┐
+      │ SW1: OFF    │  ← SPI Mode
+      │ SW2: ON     │  ←
+      └─────────────┘
+</pre>
+</div>
+
+<h3>4.2 Power Circuit</h3>
+<div class="diagram-box">
+<pre>
+                                    ┌─────────────────┐
+       ┌──────────┐                 │    TP4056       │
+       │  3.7V    │                 │  USB-C Charger  │
+       │  LiPo    │                 │  w/ Protection  │
+       │ 1000mAh  │                 │                 │
+       │          │                 │                 │           ┌──────────────┐
+       │  BAT+ ───┼─────────────────┤► B+          OUT+ ─────────┤► 3V3 / VIN   │
+       │          │                 │                 │    ┌──┐   │   ESP32-C6   │
+       │  BAT- ───┼─────────────────┤► B-          OUT- ───┤  ├───┤► GND         │
+       │          │                 │                 │    └──┘   │              │
+       └──────────┘                 │   USB-C IN      │   100μF  └──────────────┘
+                                    │  (5V charge)    │   cap
+                                    └─────────────────┘
+
+  Note: If your ESP32-C6 board has a built-in LiPo connector (JST),
+  skip the TP4056 — plug battery directly into the board.
+</pre>
+</div>
+
+<div class="callout-warn callout">
+  <strong>⚠️ Voltage Warning:</strong> Both PN532 and ESP32-C6 operate at 3.3V logic. No level shifting is required. Do NOT connect 5V to the PN532 VCC from the raw battery — always use the regulated 3.3V output.
+</div>
+
+<h3>4.3 Full Pin Map</h3>
+<table>
+  <tr><th>ESP32-C6 Pin</th><th>Connected To</th><th>Function</th></tr>
+  <tr><td>GPIO 6</td><td>PN532 SCK</td><td>SPI Clock</td></tr>
+  <tr><td>GPIO 2</td><td>PN532 MISO</td><td>SPI Master In, Slave Out</td></tr>
+  <tr><td>GPIO 7</td><td>PN532 MOSI</td><td>SPI Master Out, Slave In</td></tr>
+  <tr><td>GPIO 10</td><td>PN532 SS</td><td>SPI Chip Select (active low)</td></tr>
+  <tr><td>GPIO 3</td><td>PN532 IRQ</td><td>Interrupt for deep sleep wake</td></tr>
+  <tr><td>3V3</td><td>PN532 VCC, TP4056 OUT+</td><td>3.3V power rail</td></tr>
+  <tr><td>GND</td><td>PN532 GND, TP4056 OUT-</td><td>Common ground</td></tr>
+</table>
+
+<!-- FIRMWARE -->
+<div class="page-break"></div>
+<h2>5. Firmware Architecture</h2>
+
+<h3>5.1 Boot & Runtime Flow</h3>
+<div class="diagram-box">
+<pre>
+  ┌─────────┐     ┌──────────┐     ┌───────────┐     ┌───────────┐     ┌──────────┐
+  │  DEEP   │     │  WAKE    │     │  READ     │     │  SIGN &   │     │  SEND    │
+  │  SLEEP  │────►│  on IRQ  │────►│  NFC TAG  │────►│  TIMESTAMP│────►│  TO API  │
+  │  (~5μA) │     │  or Timer│     │  UID      │     │  (HMAC)   │     │  (Wi-Fi) │
+  └─────────┘     └──────────┘     └───────────┘     └───────────┘     └────┬─────┘
+       ▲                                                                     │
+       │                           ┌───────────┐     ┌───────────┐          │
+       └───────────────────────────┤  CONFIRM   │◄───┤  PUSH     │◄─────────┘
+                                   │  & SLEEP   │    │  NOTIF    │
+                                   └───────────┘    └───────────┘
+</pre>
+</div>
+
+<h3>5.2 Key Firmware Features</h3>
+<ul>
+  <li><strong>Deep Sleep with IRQ Wake:</strong> ESP32-C6 sleeps at ~5μA. PN532 IRQ line triggers GPIO wake when an NFC tag enters the field — no polling, maximum battery life.</li>
+  <li><strong>Tag UID Reading:</strong> On wake, read the NFC tag's unique identifier (4 or 7 byte UID) via SPI.</li>
+  <li><strong>Cryptographic Signing:</strong> Generate HMAC-SHA256 of <code>{tag_uid + device_id + timestamp}</code> using a pre-shared key. This creates the proof-of-presence record.</li>
+  <li><strong>Wi-Fi Connect & POST:</strong> Connect to configured Wi-Fi, send signed payload to cloud API endpoint.</li>
+  <li><strong>LED Feedback:</strong> Brief flash — green for success, red for failure.</li>
+  <li><strong>Timer Wake (Optional):</strong> Periodic wake every N minutes for tamper-check mode (verify tag is still present).</li>
+</ul>
+
+<h3>5.3 Proof-of-Presence Payload</h3>
+<div class="diagram-box">
+<pre>
+  {
+    "device_id":  "ss-001-c6",           // Unique sensor ID
+    "tag_uid":    "04:A2:3B:7C:D1:00:00", // NFC tag UID
+    "timestamp":  1738346100,             // Unix timestamp (RTC or NTP)
+    "location":   "warehouse-door-3",     // Pre-configured location label
+    "signature":  "a3f8c2...e91b",        // HMAC-SHA256 proof
+    "battery_mv": 3720,                   // Battery voltage (mV)
+    "fw_version": "0.1.0"
+  }
+</pre>
+</div>
+
+<h3>5.4 Development Framework</h3>
+<table>
+  <tr><th>Option</th><th>Pros</th><th>Recommendation</th></tr>
+  <tr><td>Arduino + ESP32 Core</td><td>Fast prototyping, PN532 libraries available</td><td><span class="badge">POC ✓</span></td></tr>
+  <tr><td>ESP-IDF (C)</td><td>Full control, lower power, production-ready</td><td>Production</td></tr>
+  <tr><td>PlatformIO</td><td>Better tooling than Arduino IDE, same libs</td><td><span class="badge">POC ✓</span></td></tr>
+</table>
+
+<h3>5.5 Required Libraries</h3>
+<ul>
+  <li><code>Adafruit_PN532</code> — NFC/RFID communication</li>
+  <li><code>WiFi</code> (built-in) — ESP32-C6 Wi-Fi stack</li>
+  <li><code>HTTPClient</code> (built-in) — HTTPS POST to cloud</li>
+  <li><code>mbedtls</code> (built-in) — HMAC-SHA256 signing</li>
+  <li><code>ArduinoJson</code> — JSON payload construction</li>
+</ul>
+
+<!-- POWER -->
+<h2>6. Power Analysis</h2>
+
+<h3>6.1 Current Consumption Estimates</h3>
+<table>
+  <tr><th>State</th><th>ESP32-C6</th><th>PN532</th><th>Total</th><th>Duration</th></tr>
+  <tr><td>Deep Sleep</td><td>5 μA</td><td>80 μA</td><td>~85 μA</td><td>99.5% of time</td></tr>
+  <tr><td>Wake + NFC Read</td><td>30 mA</td><td>100 mA</td><td>~130 mA</td><td>~200 ms</td></tr>
+  <tr><td>Wi-Fi TX</td><td>300 mA</td><td>80 μA</td><td>~300 mA</td><td>~2 sec</td></tr>
+  <tr><td>Wi-Fi Connect</td><td>120 mA</td><td>80 μA</td><td>~120 mA</td><td>~1 sec</td></tr>
+</table>
+
+<h3>6.2 Battery Life Estimate</h3>
+<div class="callout">
+  <strong>Scenario:</strong> 20 NFC scans per day, 1000mAh battery<br><br>
+  <strong>Sleep:</strong> 85μA × 23.98h = 2.04 mAh/day<br>
+  <strong>Active:</strong> 20 scans × ~3.2s × ~200mA avg = ~3.6 mAh/day<br>
+  <strong>Total:</strong> ~5.6 mAh/day<br><br>
+  <strong>Estimated Battery Life: ~178 days (~6 months)</strong><br><br>
+  With a MOSFET to cut PN532 power during deep sleep (reducing standby to ~5μA), this extends to <strong>~12+ months</strong>.
+</div>
+
+<!-- SECURITY -->
+<div class="page-break"></div>
+<h2>7. Security Considerations</h2>
+<ul>
+  <li><strong>Device Key:</strong> Each sensor has a unique pre-shared key stored in ESP32-C6 flash (eFuse for production).</li>
+  <li><strong>HMAC Signing:</strong> Every event is signed with HMAC-SHA256, preventing replay/forgery.</li>
+  <li><strong>TLS:</strong> All API communication over HTTPS with certificate pinning.</li>
+  <li><strong>Tag Cloning:</strong> For POC, UID-based. Production should use NTAG 424 DNA with AES authentication for clone-proof operation.</li>
+  <li><strong>Timestamp Integrity:</strong> NTP sync on each wake; RTC drift monitoring; server-side window validation (±30s).</li>
+</ul>
+
+<h2>8. Cloud Integration</h2>
+<p>The POC will integrate with <strong>iotpush</strong> (DaSecure's push notification platform) for the notification pipeline:</p>
+<ul>
+  <li>ESP32-C6 POSTs signed JSON payload to iotpush API endpoint</li>
+  <li>iotpush validates signature and routes notification</li>
+  <li>Push notification delivered to mobile app and/or webhook</li>
+  <li>Event stored in database for audit trail / proof retrieval</li>
+</ul>
+
+<h2>9. POC Milestones</h2>
+<table>
+  <tr><th>Phase</th><th>Milestone</th><th>Description</th></tr>
+  <tr><td><span class="badge">Phase 1</span></td><td>Hardware Assembly</td><td>Wire ESP32-C6 + PN532 on breadboard, verify SPI communication</td></tr>
+  <tr><td><span class="badge">Phase 2</span></td><td>NFC Read</td><td>Read NFC tag UIDs, display on serial monitor</td></tr>
+  <tr><td><span class="badge">Phase 3</span></td><td>Wi-Fi + API</td><td>Connect to Wi-Fi, POST tag event to cloud endpoint</td></tr>
+  <tr><td><span class="badge">Phase 4</span></td><td>Crypto Signing</td><td>HMAC-SHA256 proof-of-presence payload</td></tr>
+  <tr><td><span class="badge">Phase 5</span></td><td>Deep Sleep</td><td>IRQ-based wake, power optimization</td></tr>
+  <tr><td><span class="badge">Phase 6</span></td><td>Battery Integration</td><td>LiPo + TP4056, voltage monitoring, battery reporting</td></tr>
+  <tr><td><span class="badge">Phase 7</span></td><td>End-to-End Demo</td><td>Tap tag → push notification on phone within 3 seconds</td></tr>
+</table>
+
+<h2>10. Next Steps (Post-POC)</h2>
+<ul>
+  <li>Custom PCB design (KiCad) — reduce form factor to stamp-size</li>
+  <li>3D printed enclosure with adhesive mount</li>
+  <li>NTAG 424 DNA support for clone-proof authentication</li>
+  <li>BLE provisioning (instead of hardcoded Wi-Fi credentials)</li>
+  <li>OTA firmware updates via cloud</li>
+  <li>SenseStamp mobile app for tag management and event history</li>
+  <li>Thread/Zigbee mesh support (ESP32-C6 native) for multi-sensor deployments</li>
+</ul>
+
+<div class="footer">
+  SenseStamp POC Specification v1.0 · DaSecure Solutions LLC · Confidential<br>
+  sensestamp.com · dasecure.com
+</div>
+
+</body>
+</html>
