@@ -208,6 +208,46 @@ static esp_err_t motion_status_handler(httpd_req_t *req){
   return httpd_resp_send(req, buf, strlen(buf));
 }
 
+static esp_err_t snapshot_handler(httpd_req_t *req){
+  char query[80];
+  char fname[64] = "";
+  if (httpd_req_get_url_query_len(req) > 0 && httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
+    httpd_query_key_value(query, "file", fname, sizeof(fname));
+  }
+  // Reject anything that isn't a bare filename (no path traversal, no subdirectories)
+  if (fname[0] == '\0' || strstr(fname, "..") != NULL || strchr(fname, '/') != NULL) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid file");
+    return ESP_FAIL;
+  }
+  if (!sdReady) {
+    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "SD not ready");
+    return ESP_FAIL;
+  }
+  char path[96];
+  snprintf(path, sizeof(path), "%s/%s", MOTION_DIR, fname);
+  if (!SD_MMC.exists(path)) {
+    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "not found");
+    return ESP_FAIL;
+  }
+  File f = SD_MMC.open(path, FILE_READ);
+  if (!f) {
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "open failed");
+    return ESP_FAIL;
+  }
+  httpd_resp_set_type(req, "image/jpeg");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  uint8_t buf[1024];
+  esp_err_t res = ESP_OK;
+  int n;
+  while ((n = f.read(buf, sizeof(buf))) > 0) {
+    res = httpd_resp_send_chunk(req, (const char*)buf, n);
+    if (res != ESP_OK) break;
+  }
+  f.close();
+  httpd_resp_send_chunk(req, NULL, 0);
+  return res;
+}
+
 static esp_err_t stream_handler(httpd_req_t *req){
   camera_fb_t * fb = NULL;
   esp_err_t res = ESP_OK;
@@ -251,11 +291,13 @@ void startCameraServer(){
   httpd_uri_t index_uri = { .uri="/", .method=HTTP_GET, .handler=index_handler, .user_ctx=NULL };
   httpd_uri_t led_uri = { .uri="/led", .method=HTTP_GET, .handler=led_handler, .user_ctx=NULL };
   httpd_uri_t motion_uri = { .uri="/motion.json", .method=HTTP_GET, .handler=motion_status_handler, .user_ctx=NULL };
+  httpd_uri_t snapshot_uri = { .uri="/snapshot", .method=HTTP_GET, .handler=snapshot_handler, .user_ctx=NULL };
 
   if (httpd_start(&camera_httpd, &config) == ESP_OK){
     httpd_register_uri_handler(camera_httpd, &index_uri);
     httpd_register_uri_handler(camera_httpd, &led_uri);
     httpd_register_uri_handler(camera_httpd, &motion_uri);
+    httpd_register_uri_handler(camera_httpd, &snapshot_uri);
   }
 
   config.server_port = 81;
@@ -314,7 +356,7 @@ void sdRolloff(){
 
 // ================= iotPush =================
 
-bool sendIotPushAlert(const char* title, const char* message){
+bool sendIotPushAlert(const char* title, const char* message, const char* clickUrl){
   if (WiFi.status() != WL_CONNECTED) return false;
   WiFiClientSecure client;
   client.setInsecure(); // small embedded device; skip full CA validation, transport still TLS-encrypted
@@ -323,7 +365,11 @@ bool sendIotPushAlert(const char* title, const char* message){
   if (!http.begin(client, url)) return false;
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Authorization", String("Bearer ") + IOTPUSH_API_KEY);
-  String body = String("{\"title\":\"") + title + "\",\"message\":\"" + message + "\",\"priority\":\"high\"}";
+  String body = String("{\"title\":\"") + title + "\",\"message\":\"" + message + "\",\"priority\":\"high\"";
+  if (clickUrl != NULL && clickUrl[0] != '\0') {
+    body += String(",\"click_url\":\"") + clickUrl + "\"";
+  }
+  body += "}";
   int code = http.POST(body);
   http.end();
   if (code < 200 || code >= 300){
@@ -363,15 +409,17 @@ void onMotionDetected(camera_fb_t* fb, int changedCells){
   time_t now = time(NULL);
   lastMotionEpoch = now;
 
-  char fname[64];
+  char basename[48];
   if (now > 1700000000){ // NTP has synced to a sane epoch
     struct tm t;
     localtime_r(&now, &t);
-    snprintf(fname, sizeof(fname), "%s/%04d%02d%02d_%02d%02d%02d.jpg", MOTION_DIR,
+    snprintf(basename, sizeof(basename), "%04d%02d%02d_%02d%02d%02d.jpg",
              t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec);
   } else {
-    snprintf(fname, sizeof(fname), "%s/m_%010lu.jpg", MOTION_DIR, (unsigned long)millis());
+    snprintf(basename, sizeof(basename), "m_%010lu.jpg", (unsigned long)millis());
   }
+  char fname[64];
+  snprintf(fname, sizeof(fname), "%s/%s", MOTION_DIR, basename);
 
   bool saved = false;
   if (sdReady){
@@ -391,7 +439,12 @@ void onMotionDetected(camera_fb_t* fb, int changedCells){
   char msg[96];
   snprintf(msg, sizeof(msg), "Motion detected on ESP32-CAM (%d zones changed)%s",
            changedCells, saved ? "" : " - SD save failed");
-  sendIotPushAlert("Motion Alert", msg);
+
+  char clickUrl[96] = "";
+  if (saved){
+    snprintf(clickUrl, sizeof(clickUrl), "http://esp32cam.local/snapshot?file=%s", basename);
+  }
+  sendIotPushAlert("Motion Alert", msg, clickUrl);
 }
 
 void motionDetectTask(void* param){
