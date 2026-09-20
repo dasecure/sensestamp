@@ -1,0 +1,2 @@
+# Device credentials: WiFi and API keys. Never commit.
+secrets.h

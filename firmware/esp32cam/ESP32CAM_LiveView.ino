@@ -8,6 +8,10 @@
 #include <WiFiClientSecure.h>
 #include <time.h>
 
+// Credentials live in secrets.h, which is gitignored and never committed.
+// Copy secrets.example.h to secrets.h and fill it in before building.
+#include "secrets.h"
+
 // ===== AI-Thinker ESP32-CAM pin map =====
 #define PWDN_GPIO_NUM     32
 #define RESET_GPIO_NUM    -1
@@ -47,16 +51,34 @@
 
 // ===== iotPush =====
 static const char* IOTPUSH_TOPIC   = "esp32cam";
-static const char* IOTPUSH_API_KEY = "2cb9425228567ee3c62d689a69e2d65e";
+// IOTPUSH_API_KEY is defined in secrets.h.
 
 volatile int activeStreamClients = 0;
+// Frame-rate ceiling for /stream. Smoothness is about a CONSISTENT interval, not
+// peak fps, and free-running saturates anything narrower than LAN. Tunable live
+// via /control?var=fps so we can match the link without a reflash.
+volatile uint8_t streamMaxFps = 12;
+// millis() of the last frame actually written to a stream client. The motion task
+// uses this, not activeStreamClients alone, to decide whether someone is really
+// watching: a client that vanishes mid-stream can leave the counter stuck above
+// zero, and keying off the counter alone would disable motion detection forever.
+volatile uint32_t lastStreamFrameMs = 0;
 volatile uint8_t flashBrightness = FLASH_DEFAULT_LEVEL;
 volatile bool sdReady = false;
 volatile uint32_t motionEventCount = 0;
 volatile time_t lastMotionEpoch = 0;
 
-const char* ssid = "Bunny";
-const char* password = "4dwinner";
+// Motion-detector state declared up here because /control touches it too, and
+// the HTTP handlers are defined above the motion task. Volatile because these
+// are written from the HTTP task and read by the motion task on the other core.
+static volatile bool motionHaveBaseline = false;
+// The sensor's auto-exposure/auto-gain keeps adjusting for the first few seconds
+// after boot, and again after any framesize change. That shifts every cell's luma
+// at once and reads as whole-frame motion, so ignore detections until it settles.
+static volatile int motionWarmupFrames = 6;
+
+const char* ssid = WIFI_SSID;          // from secrets.h
+const char* password = WIFI_PASSWORD;  // from secrets.h
 
 httpd_handle_t camera_httpd = NULL;
 httpd_handle_t stream_httpd = NULL;
@@ -198,11 +220,15 @@ static esp_err_t led_handler(httpd_req_t *req){
 }
 
 static esp_err_t motion_status_handler(httpd_req_t *req){
-  char buf[192];
+  char buf[288];
   time_t now = time(NULL);
+  sensor_t *s = esp_camera_sensor_get();
   snprintf(buf, sizeof(buf),
-    "{\"count\":%lu,\"lastEpoch\":%lu,\"sdReady\":%s}",
-    (unsigned long)motionEventCount, (unsigned long)lastMotionEpoch, sdReady ? "true" : "false");
+    "{\"count\":%lu,\"lastEpoch\":%lu,\"sdReady\":%s,\"streaming\":%d,\"freeHeap\":%lu,"
+    "\"framesize\":%d,\"quality\":%d,\"fps\":%d}",
+    (unsigned long)motionEventCount, (unsigned long)lastMotionEpoch, sdReady ? "true" : "false",
+    (int)activeStreamClients, (unsigned long)ESP.getFreeHeap(),
+    s ? (int)s->status.framesize : -1, s ? (int)s->status.quality : -1, (int)streamMaxFps);
   httpd_resp_set_type(req, "application/json");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   return httpd_resp_send(req, buf, strlen(buf));
@@ -234,17 +260,105 @@ static esp_err_t snapshot_handler(httpd_req_t *req){
     httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "open failed");
     return ESP_FAIL;
   }
+  // Read buffer lives on the heap: the httpd handler task stack is small and
+  // FATFS reads are themselves stack-hungry, so a big stack buffer panics here.
+  const size_t SNAP_CHUNK = 2048;
+  uint8_t *buf = (uint8_t *)malloc(SNAP_CHUNK);
+  if (!buf) {
+    f.close();
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "no memory");
+    return ESP_FAIL;
+  }
   httpd_resp_set_type(req, "image/jpeg");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-  uint8_t buf[1024];
   esp_err_t res = ESP_OK;
   int n;
-  while ((n = f.read(buf, sizeof(buf))) > 0) {
+  while ((n = f.read(buf, SNAP_CHUNK)) > 0) {
     res = httpd_resp_send_chunk(req, (const char*)buf, n);
     if (res != ESP_OK) break;
   }
+  free(buf);
   f.close();
   httpd_resp_send_chunk(req, NULL, 0);
+  return res;
+}
+
+// Live camera tuning so resolution/quality/rate can be matched to the link
+// without a reflash. framesize values are the esp_camera framesize_t enum:
+// 6=QVGA 320x240, 10=VGA 640x480, 11=SVGA 800x600, 13=HD 1280x720, 15=UXGA.
+// (Verified against this core on real hardware -- the enum gained entries in
+// esp32-camera 2.x, so older docs listing SVGA as 9 are wrong here.)
+// quality is the JPEG quantiser, 10 (best) to 63 (worst); higher = smaller frames.
+static esp_err_t control_handler(httpd_req_t *req){
+  char query[128], var[24], val[16];
+  if (httpd_req_get_url_query_len(req) == 0 ||
+      httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
+      httpd_query_key_value(query, "var", var, sizeof(var)) != ESP_OK ||
+      httpd_query_key_value(query, "val", val, sizeof(val)) != ESP_OK) {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "need ?var=&val=");
+    return ESP_FAIL;
+  }
+  int v = atoi(val);
+  sensor_t *s = esp_camera_sensor_get();
+  if (!s) {
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "no sensor");
+    return ESP_FAIL;
+  }
+  int rc = -1;
+  if (!strcmp(var, "framesize")) {
+    if (v < 0 || v > FRAMESIZE_UXGA) {
+      httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "framesize out of range");
+      return ESP_FAIL;
+    }
+    rc = s->set_framesize(s, (framesize_t)v);
+    // Frame geometry changed, so the motion grid and its baseline are stale.
+    motionHaveBaseline = false;
+    motionWarmupFrames = 4;
+  } else if (!strcmp(var, "quality")) {
+    if (v < 10 || v > 63) {
+      httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "quality must be 10-63");
+      return ESP_FAIL;
+    }
+    rc = s->set_quality(s, v);
+  } else if (!strcmp(var, "fps")) {
+    if (v < 1 || v > 30) {
+      httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "fps must be 1-30");
+      return ESP_FAIL;
+    }
+    streamMaxFps = (uint8_t)v;
+    rc = 0;
+  } else {
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "unknown var");
+    return ESP_FAIL;
+  }
+  if (rc != 0) {
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "set failed");
+    return ESP_FAIL;
+  }
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_type(req, "application/json");
+  return httpd_resp_send(req, "{\"ok\":true}", 11);
+}
+
+// Single live JPEG. Stateless and short-lived, unlike /stream: a proxy can poll
+// this and fan out to many viewers without the camera ever holding a long-lived
+// connection, which is what wedges the stream server.
+static esp_err_t capture_handler(httpd_req_t *req){
+  camera_fb_t *fb = esp_camera_fb_get();
+  if (!fb) {
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "capture failed");
+    return ESP_FAIL;
+  }
+  if (fb->format != PIXFORMAT_JPEG) {
+    esp_camera_fb_return(fb);
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "not jpeg");
+    return ESP_FAIL;
+  }
+  httpd_resp_set_type(req, "image/jpeg");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+  esp_err_t res = httpd_resp_send(req, (const char*)fb->buf, fb->len);
+  esp_camera_fb_return(fb);
   return res;
 }
 
@@ -257,10 +371,24 @@ static esp_err_t stream_handler(httpd_req_t *req){
   if(res != ESP_OK) return res;
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 
+  // Deliberately does NOT touch the flash LED. Lighting the scene on connect
+  // changed brightness enough to trip motion detection, which fired a push,
+  // which held the camera buffer and wedged this very handler. Use /led instead.
   activeStreamClients++;
-  ledcWrite(FLASH_GPIO_NUM, flashBrightness);
 
+  uint32_t lastFrameMs = 0;
   while(true){
+    // Hold the frame interval steady rather than sending as fast as the encoder
+    // and TCP window allow. A stable 8fps looks smoother than a lurching 25.
+    uint8_t fpsCap = streamMaxFps;
+    if (fpsCap < 1) fpsCap = 1;
+    uint32_t minIntervalMs = 1000 / fpsCap;
+    if (lastFrameMs != 0){
+      uint32_t elapsed = millis() - lastFrameMs;
+      if (elapsed < minIntervalMs) vTaskDelay(pdMS_TO_TICKS(minIntervalMs - elapsed));
+    }
+    lastFrameMs = millis();
+
     fb = esp_camera_fb_get();
     if(!fb){
       res = ESP_FAIL;
@@ -273,38 +401,58 @@ static esp_err_t stream_handler(httpd_req_t *req){
       if(res == ESP_OK) res = httpd_resp_send_chunk(req, (const char *)fb->buf, fb->len);
       esp_camera_fb_return(fb);
       fb = NULL;
+      if(res == ESP_OK) lastStreamFrameMs = millis();
     }
     if(res != ESP_OK) break;
   }
   activeStreamClients--;
-  if(activeStreamClients <= 0){
-    activeStreamClients = 0;
-    ledcWrite(FLASH_GPIO_NUM, 0);
-  }
+  if(activeStreamClients < 0) activeStreamClients = 0;
   return res;
 }
 
 void startCameraServer(){
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  // Default is 4096, which is not enough once a handler touches SD/FATFS.
+  config.stack_size = 10240;
+  // Without these the socket has NO send timeout, so writing to a client that
+  // vanished (phone off wifi, tab closed, tunnel dropped) blocks until TCP
+  // finally gives up minutes later. The handler runs in the server's single
+  // task, so that one dead peer wedges the whole server. Bound the wait.
+  config.send_wait_timeout = 5;
+  config.recv_wait_timeout = 5;
+  config.lru_purge_enable = true;
   config.server_port = 80;
 
   httpd_uri_t index_uri = { .uri="/", .method=HTTP_GET, .handler=index_handler, .user_ctx=NULL };
   httpd_uri_t led_uri = { .uri="/led", .method=HTTP_GET, .handler=led_handler, .user_ctx=NULL };
   httpd_uri_t motion_uri = { .uri="/motion.json", .method=HTTP_GET, .handler=motion_status_handler, .user_ctx=NULL };
   httpd_uri_t snapshot_uri = { .uri="/snapshot", .method=HTTP_GET, .handler=snapshot_handler, .user_ctx=NULL };
+  httpd_uri_t capture_uri = { .uri="/capture", .method=HTTP_GET, .handler=capture_handler, .user_ctx=NULL };
+  httpd_uri_t control_uri = { .uri="/control", .method=HTTP_GET, .handler=control_handler, .user_ctx=NULL };
 
-  if (httpd_start(&camera_httpd, &config) == ESP_OK){
+  esp_err_t r80 = httpd_start(&camera_httpd, &config);
+  if (r80 == ESP_OK){
     httpd_register_uri_handler(camera_httpd, &index_uri);
     httpd_register_uri_handler(camera_httpd, &led_uri);
     httpd_register_uri_handler(camera_httpd, &motion_uri);
     httpd_register_uri_handler(camera_httpd, &snapshot_uri);
+    httpd_register_uri_handler(camera_httpd, &capture_uri);
+    httpd_register_uri_handler(camera_httpd, &control_uri);
+  } else {
+    Serial.printf("Port 80 server failed to start: %s\n", esp_err_to_name(r80));
   }
 
+  // The stream handler never touches SD/FATFS, so give port 81 the stock stack
+  // back rather than the enlarged one port 80 needs.
+  config.stack_size = 4096;
   config.server_port = 81;
   config.ctrl_port = 32769;
   httpd_uri_t stream_uri = { .uri="/stream", .method=HTTP_GET, .handler=stream_handler, .user_ctx=NULL };
-  if (httpd_start(&stream_httpd, &config) == ESP_OK){
+  esp_err_t r81 = httpd_start(&stream_httpd, &config);
+  if (r81 == ESP_OK){
     httpd_register_uri_handler(stream_httpd, &stream_uri);
+  } else {
+    Serial.printf("Port 81 stream server failed to start: %s\n", esp_err_to_name(r81));
   }
 }
 
@@ -385,7 +533,6 @@ static uint8_t* motionRgbBuf = NULL;
 static uint16_t motionRgbW = 0, motionRgbH = 0;
 static uint8_t* motionPrevGrid = NULL;
 static uint8_t* motionCurGrid = NULL;
-static bool motionHaveBaseline = false;
 static uint32_t lastMotionMs = 0;
 
 bool ensureMotionBuffers(uint16_t w, uint16_t h){
@@ -404,7 +551,9 @@ bool ensureMotionBuffers(uint16_t w, uint16_t h){
   return motionPrevGrid && motionCurGrid;
 }
 
-void onMotionDetected(camera_fb_t* fb, int changedCells){
+// Takes a caller-owned copy of the JPEG, NOT the live framebuffer: everything
+// below (SD write, TLS push) is slow, and the camera must not be held across it.
+void onMotionDetected(const uint8_t* jpg, size_t jpgLen, int changedCells){
   motionEventCount++;
   time_t now = time(NULL);
   lastMotionEpoch = now;
@@ -425,7 +574,7 @@ void onMotionDetected(camera_fb_t* fb, int changedCells){
   if (sdReady){
     File file = SD_MMC.open(fname, FILE_WRITE);
     if (file){
-      file.write(fb->buf, fb->len);
+      file.write(jpg, jpgLen);
       file.close();
       saved = true;
       sdRolloff();
@@ -442,7 +591,10 @@ void onMotionDetected(camera_fb_t* fb, int changedCells){
 
   char clickUrl[96] = "";
   if (saved){
-    snprintf(clickUrl, sizeof(clickUrl), "http://esp32cam.local/snapshot?file=%s", basename);
+    // Use the live IP rather than esp32cam.local: mDNS resolution from phones is
+    // unreliable (especially on Android), and the link is only useful on this LAN anyway.
+    snprintf(clickUrl, sizeof(clickUrl), "http://%s/snapshot?file=%s",
+             WiFi.localIP().toString().c_str(), basename);
   }
   sendIotPushAlert("Motion Alert", msg, clickUrl);
 }
@@ -450,6 +602,19 @@ void onMotionDetected(camera_fb_t* fb, int changedCells){
 void motionDetectTask(void* param){
   for (;;){
     vTaskDelay(pdMS_TO_TICKS(MOTION_CHECK_INTERVAL_MS));
+
+    // Someone is watching the live view. Skip detection entirely: an alert tells
+    // them nothing they can't already see, and competing for camera buffers is
+    // what starved the stream handler. Re-warm the baseline once they disconnect.
+    // Only treat this as "someone is watching" if frames are actually still
+    // going out. A client that disappears mid-stream can wedge the handler with
+    // the counter stuck above zero; keying off the counter alone would then
+    // silently disable motion detection until the next reboot.
+    if (activeStreamClients > 0 && (millis() - lastStreamFrameMs) < 10000){
+      motionHaveBaseline = false;
+      motionWarmupFrames = 4;
+      continue;
+    }
 
     camera_fb_t* fb = esp_camera_fb_get();
     if (!fb) continue;
@@ -485,6 +650,14 @@ void motionDetectTask(void* param){
       }
     }
 
+    if (motionWarmupFrames > 0){
+      motionWarmupFrames--;
+      memcpy(motionPrevGrid, motionCurGrid, MOTION_GRID_W * MOTION_GRID_H);
+      motionHaveBaseline = true;
+      esp_camera_fb_return(fb);
+      continue;
+    }
+
     int changed = 0;
     if (motionHaveBaseline){
       for (int i = 0; i < MOTION_GRID_W * MOTION_GRID_H; i++){
@@ -500,10 +673,24 @@ void motionDetectTask(void* param){
     bool cooldownOver = (lastMotionMs == 0) || (now - lastMotionMs > MOTION_COOLDOWN_MS);
     if (changed >= MOTION_MIN_CHANGED_CELLS && cooldownOver){
       lastMotionMs = now;
-      onMotionDetected(fb, changed);
+      // Copy the JPEG out and hand the camera buffer back BEFORE the slow work.
+      // onMotionDetected writes to SD and does a TLS POST that can take seconds;
+      // holding a framebuffer across that starves the stream handler and, with
+      // fb_count=2, can deadlock the camera outright.
+      size_t jlen = fb->len;
+      uint8_t* jcopy = (uint8_t*)ps_malloc(jlen);
+      if (jcopy){
+        memcpy(jcopy, fb->buf, jlen);
+        esp_camera_fb_return(fb);
+        fb = NULL;
+        onMotionDetected(jcopy, jlen, changed);
+        free(jcopy);
+      } else {
+        Serial.println("Motion: no PSRAM for JPEG copy, skipping this event");
+      }
     }
 
-    esp_camera_fb_return(fb);
+    if (fb) esp_camera_fb_return(fb);
   }
 }
 
