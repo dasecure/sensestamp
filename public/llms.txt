@@ -1,0 +1,26 @@
+# SenseStamp
+
+> SenseStamp makes subscription-free, hub-free ESP32-C6 motion sensors for tamper-proof IoT event logging ("Prove It Happened"). Stick a coin-sized sensor on any door, window, or drawer; every sensor event is HMAC-SHA256 signed on-device before it leaves the hardware, gets a public proof URL, and can be verified with an NFC tap. Alerts are delivered as instant push notifications via iotpush. SenseStamp is currently pre-launch and taking waitlist sign-ups.
+
+## Key facts
+
+- Status: pre-launch; join the waitlist at https://sensestamp.com/#waitlist
+- No subscription: buy once, own forever, $0/month
+- No hub required; no proprietary app lock-in
+- Signed events: HMAC-SHA256 attestation on-device, public proof URLs, NFC tap verification
+- Hardware: ESP32-C6 RISC-V, 6-axis IMU, Wi-Fi 6 (802.11ax, 2.4GHz & 5GHz), BLE 5.0
+- Size: 25x25x8mm, under 10 grams, 3M adhesive backing
+- Battery: 400mAh rechargeable Li-ion, USB-C charging, 6+ months typical use
+- Protocols: MQTT, HTTP, WebSocket (MQTT support coming for Home Assistant / OpenHAB integration)
+- Push alerts by iotpush (https://iotpush.com)
+- Roadmap: motion sensors first, then environmental (temperature, humidity, air quality) and audio (glass break, smoke alarm) sensors
+
+## Pages
+
+- [Home](https://sensestamp.com/): product overview, features, how it works, specs and roadmap
+- [Waitlist](https://sensestamp.com/#waitlist): sign up for early access
+
+## Related
+
+- [DaSecure](https://dasecure.com): parent company
+- [iotpush](https://iotpush.com): push notification service used for SenseStamp alerts
